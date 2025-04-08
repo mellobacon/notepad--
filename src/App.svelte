@@ -4,14 +4,22 @@
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import { onMount } from "svelte";
     import { writable } from "svelte/store";
+    import { load } from "@tauri-apps/plugin-store";
 
     let notepad: HTMLElement = null;
-    const statusbar = writable(true);
+    const statusbar = writable();
+    const wordwrap = writable();
     onMount(async () => {
         const textarea = notepad as HTMLInputElement;
-        await getCurrentWindow().listen("status_bar", (event) => {
-            $statusbar = event.payload as boolean;
+        const store = await load("config.json");
+        statusbar.set(await store.get("show_statusbar"));
+        wordwrap.set(await store.get("word_wrap"));
+        await getCurrentWindow().listen("status_bar", async (event) => {
+            await store.set("show_statusbar", !$statusbar);
+            $statusbar = !$statusbar;
+            await store.save();
         });
+
         await getCurrentWindow().listen("insert_char", (event) => {
             let currentPos = textarea.selectionStart;
             let endPos = textarea.selectionEnd;
@@ -22,6 +30,7 @@
             // move cursor right
             textarea.setSelectionRange(currentPos + 1, currentPos + 1);
         })
+
         await getCurrentWindow().listen("backspace", (event) => {
             let currentPos = textarea.selectionStart;
             if (currentPos === 0) return;
@@ -30,15 +39,33 @@
             textarea.value = content.substring(0, currentPos - 1) + content.substring(currentPos);
             textarea.setSelectionRange(currentPos - 1, currentPos - 1);
         })
+
         await getCurrentWindow().listen("cursor", (event) => {
             let dir = event.payload as number;
             let currentPos = textarea.selectionStart;
             textarea.setSelectionRange(currentPos + dir, currentPos + dir);
         })
+
+        await getCurrentWindow().listen("word_wrap", async (event) => {
+            await store.set("word_wrap", !$wordwrap);
+            $wordwrap = !$wordwrap;
+            await store.save();
+        })
+
+        await getCurrentWindow().listen("new_line", (event) => {
+            let currentPos = textarea.selectionStart;
+            let endPos = textarea.selectionEnd;
+            let content = textarea.value;
+
+            // insert char at cursor pos
+            textarea.value = `${content.substring(0, currentPos)}\n${content.substring(endPos, content.length)}`;
+            // move cursor right
+            textarea.setSelectionRange(currentPos + 1, currentPos + 1);
+        })
      })
 </script>
 <main>
-  <textarea bind:this={notepad} id="notepad" on:focus|preventDefault on:click|preventDefault on:input|preventDefault on:keydown|preventDefault></textarea>
+  <textarea bind:this={notepad} wrap="{$wordwrap ? 'soft' : 'off'}" id="notepad" on:focus|preventDefault on:click|preventDefault on:input|preventDefault on:keydown|preventDefault></textarea>
   {#if $statusbar}
     <div id="status-bar">
         <div id="file-info">
@@ -63,7 +90,8 @@
     border: none;
     flex: 1;
     resize: none;
-    overflow: scroll;
+    overflow-y: scroll;
+    overflow-x: auto;
     &:focus {
       outline: none;
     }

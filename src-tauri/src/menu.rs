@@ -1,4 +1,7 @@
-use tauri::{menu::{AboutMetadataBuilder, CheckMenuItem, IsMenuItem, MenuItem, SubmenuBuilder}, App, Wry};
+use std::sync::Arc;
+
+use tauri::{menu::{AboutMetadataBuilder, CheckMenuItem, IsMenuItem, MenuItem, SubmenuBuilder}, App, Manager, Wry};
+use tauri_plugin_store::Store;
 
 pub struct Menu<'a> {
     app: &'a App
@@ -180,7 +183,13 @@ impl<'a> Menu<'a> {
                 true,
                 Some(""),
             ).unwrap();
-        
+        let new_line = MenuItem::with_id(
+                self.app,
+                "new_line",
+                "Enter",
+                true,
+                Some(""),
+            ).unwrap();
         SubmenuBuilder::with_id(self.app, "edit", "Edit")
             .undo()
             .separator()
@@ -190,6 +199,7 @@ impl<'a> Menu<'a> {
             .item(&insert_chars)
             //.item(&insert_ascii)
             .item(&insert_backspace)
+            .item(&new_line)
             .item(&move_cursor_left)
             .item(&move_cursor_right)
             .separator()
@@ -200,12 +210,13 @@ impl<'a> Menu<'a> {
             .build().unwrap()
     }
     pub fn format_menu(&self) -> tauri::menu::Submenu<Wry> {
+        let store = self.app.state::<Arc<Store<Wry>>>();
         let word_wrap = CheckMenuItem::with_id(
                 self.app,
                 "word_wrap",
                 "Word Wrap",
                 true,
-                true,
+                store.get("word_wrap").unwrap().as_bool().unwrap(),
                 Some(""),
             ).unwrap();
         let font = MenuItem::with_id(
@@ -247,12 +258,14 @@ impl<'a> Menu<'a> {
             .item(&zoom_out)
             .item(&zoom_default)
             .build().unwrap();
+
+        let store = self.app.state::<Arc<Store<Wry>>>();
         let status_bar = CheckMenuItem::with_id(
                 self.app,
                 "status_bar",
                 "Status Bar",
                 true,
-                true,
+                store.get("show_statusbar").unwrap().as_bool().unwrap(),
                 Some(""),
             ).unwrap();
 
